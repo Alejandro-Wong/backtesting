@@ -273,6 +273,14 @@ class PrepOHLC(DataFrame):
     technical indicators -- as new columns to the OHLC DataFrame.
     """
 
+    # ohlc agg for resampling
+    ohlc_agg = {
+        'Open': 'first',
+        'High': 'max',
+        'Low': 'min',
+        'Close': 'last'
+    }
+
     def previous_daily(self, value: str) -> 'PrepOHLC':
         
         """Previous Day's Open, High, Low, or Close"""
