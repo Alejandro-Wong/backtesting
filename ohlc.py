@@ -264,6 +264,61 @@ class GetOHLC:
 
         return df
     
+
+
+
+class PrepOHLC(DataFrame):
+    """
+    Prepare OHLC data for backtesting by adding necessary calculations -- such as 
+    technical indicators -- as new columns to the OHLC DataFrame.
+    """
+
+    def previous_daily(self, value: str) -> 'PrepOHLC':
+        
+        """Previous Day's Open, High, Low, or Close"""
+
+        allowed_values = ['open', 'high', 'low', 'close']
+
+        if value.lower() not in allowed_values:
+            raise ValueError(
+                f"Invalid value '{value}'. Must be one of: {', '.join(allowed_values)}")
+        
+        pdv_string = f'prev_day_{value.lower()}'
+
+        d1 = self.resample('1d').apply(ohlc_agg).dropna()
+        d1 = d1.rename(columns={value.title(): pdv_string})
+        prev_day_value = d1[pdv_string].shift(1).dropna()
+
+        self = pd.merge_asof(self, prev_day_value, left_index=True, right_index=True).dropna()
+
+        return PrepOHLC(self)
+    
+    
+    def current_daily(self, value: str) -> 'PrepOHLC':
+
+        """Current Day's Open, High, or Low"""
+
+        allowed_values = ['open', 'high', 'low']
+
+        if value.lower() not in allowed_values:
+            raise ValueError(
+                f"Invalid value '{value}'. Must be one of: {', '.join(allowed_values)}")
+        
+        if value.lower() == 'open':
+            d1 = self.resample('1d').apply(ohlc_agg).dropna()
+            d1 = d1.rename(columns={'Open':'curr_day_open'})
+            curr_day_open = d1['curr_day_open']
+            self = pd.merge_asof(self, curr_day_open, left_index=True, right_index=True)
+        else:
+            cdv_string = f'curr_day_{value.lower()}'
+            if value.lower() == 'high':
+                self[cdv_string] = self['High'].cummax()
+            elif value.lower() == 'low':
+                self[cdv_string] = self['Low'].cummin()
+        
+        return PrepOHLC(self)
+    
+    
             
 
 
