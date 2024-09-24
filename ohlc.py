@@ -10,6 +10,14 @@ from config import API_KEY, SECRET_KEY
 import yfinance as yf
 
 
+# ohlc agg for resampling
+ohlc_agg = {
+    'Open': 'first',
+    'High': 'max',
+    'Low': 'min',
+    'Close': 'last'
+}
+
 
 class GetOHLC:
     """
@@ -222,19 +230,9 @@ class GetOHLC:
 
         # Resample 30m to 1h
             if self.interval == '1h':
-                ohlc = {
-                    'Open': 'first',
-                    'High': 'max',
-                    'Low': 'min',
-                    'Close': 'last',
-                    'Volume': 'sum'
-                }
-                df = df.resample('1h', offset='30Min').apply(ohlc).dropna().between_time('09:30', '15:30')
-
-                return df
-            
+                df = df.resample('1h', offset='30Min').apply(ohlc_agg).dropna().between_time('09:30', '15:30')
+                return df   
             else:
-
                 return df
             
     """
@@ -272,15 +270,7 @@ class PrepOHLC(DataFrame):
     Prepare OHLC data for backtesting by adding necessary calculations -- such as 
     technical indicators -- as new columns to the OHLC DataFrame.
     """
-
-    # ohlc agg for resampling
-    ohlc_agg = {
-        'Open': 'first',
-        'High': 'max',
-        'Low': 'min',
-        'Close': 'last'
-    }
-
+    
     def previous_daily(self, value: str) -> 'PrepOHLC':
         
         """Previous Day's Open, High, Low, or Close"""
