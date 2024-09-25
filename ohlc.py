@@ -1,5 +1,6 @@
 import re
 import pandas as pd
+from pandas import DataFrame
 from datetime import date, timedelta
 
 from alpaca.data.historical import StockHistoricalDataClient 
