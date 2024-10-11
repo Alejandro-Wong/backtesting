@@ -1,0 +1,29 @@
+,0
+Start,2017-01-03 10:40:00
+End,2019-01-02 15:55:00
+Duration,729 days 05:15:00
+Exposure Time [%],30.197551688006335
+Equity Final [$],10807.048632261422
+Equity Peak [$],11294.64540621
+Return [%],8.070486322614215
+Buy & Hold Return [%],13.988983245352305
+Return (Ann.) [%],3.964976318813096
+Volatility (Ann.) [%],6.556828096445294
+Sharpe Ratio,0.6047095120524298
+Sortino Ratio,1.0808495807596539
+Calmar Ratio,0.918443352328998
+Max. Drawdown [%],-4.317061372112574
+Avg. Drawdown [%],-0.5545153126557536
+Max. Drawdown Duration,173 days 19:50:00
+Avg. Drawdown Duration,7 days 12:29:00
+# Trades,489
+Win Rate [%],44.989775051124745
+Best Trade [%],3.201900061289731
+Worst Trade [%],-1.6199694345389704
+Avg. Trade [%],0.031121838935388446
+Max. Trade Duration,3 days 00:05:00
+Avg. Trade Duration,0 days 03:21:00
+Profit Factor,1.1472782189750592
+Expectancy [%],0.03318914402295062
+SQN,1.139244594867064
+Kelly Criterion,0.8477061652835862
