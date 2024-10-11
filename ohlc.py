@@ -1,5 +1,7 @@
 import re
 import pandas as pd
+import numpy as np
+import pandas_ta as ta
 from pandas import DataFrame
 from datetime import date, timedelta
 
@@ -7,17 +9,10 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from config import API_KEY, SECRET_KEY
+from utils import ohlc_agg
 
 import yfinance as yf
 
-
-# ohlc agg for resampling
-ohlc_agg = {
-    'Open': 'first',
-    'High': 'max',
-    'Low': 'min',
-    'Close': 'last'
-}
 
 
 class GetOHLC:
@@ -96,13 +91,13 @@ class GetOHLC:
 
         # Start and end date not specified, period is in year ('y')
             elif self.start == None and self.end == None and 'y' in self.period:
-                num_years = re.split('(\d+)', self.period)
+                num_years = re.split('(\\d+)', self.period)
                 start_date = date.today() - timedelta(days=365*int(num_years[1]))
                 end_date = date.today() - timedelta(days=1)
                 
         # Start and end date not specified, period is in days ('d')
             elif self.start == None and self.end == None and 'd' in self.period:
-                num_days = re.split('(\d+)', self.period)
+                num_days = re.split('(\\d+)', self.period)
                 start_date = date.today() - timedelta(days=int(num_days[1]))
                 end_date = date.today() - timedelta(days=1)
             
@@ -159,21 +154,33 @@ class GetOHLC:
 
         # Request user defined number of years worth of data
             elif self.start == None and self.end == None and 'y' in self.period:
-                num_years = re.split('(\d+)', self.period)
+                num_years = re.split('(\\d+)', self.period)
                 start_datetime=date.today() - timedelta(days=365*int(num_years[1]))
                 end_datetime = date.today() - timedelta(days=1)
             
         # Request user defined number of days worth of data
             elif self.start == None and self.end == None and self.period != None:
-                num_days = re.split('(\d+)', self.period)
+                num_days = re.split('(\\d+)', self.period)
                 start_datetime = date.today() - timedelta(days=int(num_days[1]))
                 end_datetime = date.today() - timedelta(days=1)
 
         # Request user defined number of days from specified end date
+                """
+                elif self.start == None and self.end != None and self.period != None:
+                    num_days = re.split('(\\d+)', self.period)
+                    end_datetime = pd.to_datetime(self.end, utc=True)
+                    start_datetime = end_datetime - timedelta(days=int(num_days[1]))
+                """
+            
             elif self.start == None and self.end != None and self.period != None:
-                num_days = re.split('(\d+)', self.period)
-                end_datetime = pd.to_datetime(self.end, utc=True)
-                start_datetime = end_datetime - timedelta(days=int(num_days[1]))
+                if 'y' in self.period:
+                    num_years = re.split('(\\d+)', self.period)
+                    end_datetime = pd.to_datetime(self.end)
+                    start_datetime = end_datetime - timedelta(days=365*int(num_years[1]))
+                else:
+                    num_days = re.split('(\\d+)', self.period)
+                    end_datetime = pd.to_datetime(self.end)
+                    start_datetime = end_datetime - timedelta(days=int(num_days[1]))
 
         # If no start or end datetime given, default to 100 days worth of data
             else:
@@ -189,7 +196,7 @@ class GetOHLC:
 
         # Intraday interval determines last printed time value i.e '5m' data ends at 15:55
             else: 
-                res = re.split('(\d+)', self.interval)
+                res = re.split('(\\d+)', self.interval)
                 amount = int(res[1])
                 endtime = timedelta(hours=16, minutes=00)
                 end = str(endtime - timedelta(minutes=amount))
@@ -207,18 +214,32 @@ class GetOHLC:
             raw_data = stock.df
 
         # Reset index, fix timezone, set index to pd.datetime format, rename index
-            df = raw_data.reset_index(level=0, drop=True)
-            est_index = df.index.tz_convert('US/Eastern')
-            df = df.set_index(est_index)
+            """df = raw_data.reset_index(level=0, drop=True)
+            df = df[~df.index.duplicated(keep='first')]         # in case of duplicate index
             df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d %H:%M:%S')
             df.index = pd.to_datetime(df.index)
+            df.index = df.index.tz_localize('UTC').tz_convert('US/Eastern')
+            # est_index = df.index.tz_convert('US/Eastern')
+            # df = df.set_index(est_index)
+            df.index.names = ['Datetime']"""
+
+            df = raw_data.reset_index(level=0, drop=True)
+            df = df[~df.index.duplicated(keep='first')]         # in case of duplicate index
+            df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d %H:%M:%S')
+            df.index = pd.to_datetime(df.index)
+            # df.index = df.index.tz_localize('EST')
+            df.index = df.index.tz_localize('UTC').tz_convert('US/Eastern')
+            df.index = df.index.tz_localize(None)
+            # est_index = df.index.tz_convert('US/Eastern')
+            # df = df.set_index(est_index)
             df.index.names = ['Datetime']
 
+
         # Fix column names, drop unneeded columns
-            df.rename(columns={'open':'Open','high':'High',
+            df = df.drop(columns=['trade_count','vwap'])
+            df = df.rename(columns={'open':'Open','high':'High',
                             'low':'Low','close':'Close',
-                            'volume':'Volume'}, inplace=True)
-            df.drop(columns=['trade_count','vwap'], inplace=True)
+                            'volume':'Volume'})
 
         # Convert Volume column to integer format
             df['Volume'] = df['Volume'].astype(int)
@@ -228,11 +249,13 @@ class GetOHLC:
 
         # Filter data to only show ohlcv during open market hours (9:30 - 4:00)
             df = df.between_time('09:30', end)
+            # print(df.head())
+
 
         # Resample 30m to 1h
             if self.interval == '1h':
                 df = df.resample('1h', offset='30Min').apply(ohlc_agg).dropna().between_time('09:30', '15:30')
-                return df   
+                return df     
             else:
                 return df
             
@@ -240,7 +263,7 @@ class GetOHLC:
     To do: method for reading in and cleaning/converting any OHLC csv file downloaded from other sources
     """
     # def from_csv(self):
-    #     pass
+    #     ...
 
 
     def from_clean_csv(self,
@@ -263,15 +286,14 @@ class GetOHLC:
 
         return df
     
-
-
+            
 
 class PrepOHLC(DataFrame):
     """
     Prepare OHLC data for backtesting by adding necessary calculations -- such as 
     technical indicators -- as new columns to the OHLC DataFrame.
     """
-    
+
     def previous_daily(self, value: str) -> 'PrepOHLC':
         
         """Previous Day's Open, High, Low, or Close"""
@@ -316,6 +338,135 @@ class PrepOHLC(DataFrame):
                 self[cdv_string] = self['Low'].cummin()
         
         return PrepOHLC(self)
+    
+
+
+    def opening_range(self, timeframe: int, range: int) -> 'PrepOHLC':
+
+        """Opening range"""
+
+        allowed_ranges = [5, 15, 30, 60, 90]
+
+        if range not in allowed_ranges:
+            raise ValueError(
+                f"Invalid range {range}. Must choose between {', '.join(allowed_ranges)}"
+            )
+
+        if range == 60 or range == 90:
+            resampled_df = self.resample(f"{str(range)}min", offset='30T').apply(ohlc_agg)
+        else:
+            resampled_df = self.resample(f"{str(range)}min").apply(ohlc_agg)
+
+        opening_range = resampled_df.between_time('09:30', '09:30').drop(columns=['Open','Close', 'Volume']).dropna()
+        opening_range = opening_range.rename(columns={'High':'or_high', 'Low':'or_low'})
+
+        self = pd.merge_asof(self, opening_range, left_index=True, right_index=True)
+
+        # Calculate opening range in datetime context
+        start_range = pd.to_datetime('09:30:00').time()
+        start_datetime = pd.Timestamp(year=2000, month=1, day=1,
+                                    hour=start_range.hour, minute=start_range.minute, 
+                                    second=start_range.second)
+        end_datetime = start_datetime + pd.Timedelta(minutes=range - timeframe)
+        end_range = end_datetime.time()
+
+        # Mask for printing null until opening range is established, prevent look-ahead bias
+        mask = (self.index.time >= start_range) & (self.index.time <= end_range)
+        self.loc[mask, 'or_high'] = np.nan
+        self.loc[mask, 'or_low'] = np.nan
+
+        return PrepOHLC(self)
+    
+    def macd(self, fast: int=12, slow: int=26, signal: int=9) -> 'PrepOHLC':
+        
+        """Moving Average Convergence Divergence"""
+
+        macd = ta.macd(self.Close, fast=fast, slow=slow, signal=signal)
+        macd = macd.rename(columns={f'MACD_{fast}_{slow}_{signal}': 'macd',
+                                    f'MACDh_{fast}_{slow}_{signal}': 'hist',
+                                    f'MACDs_{fast}_{slow}_{signal}': 'signal'})
+
+        self = self.join(macd).dropna()
+
+        return PrepOHLC(self)
+
+    def pivots(self, highs: str, lows: str, length: int=5, shift: int=None):
+        
+        """Find price swing highs and lows"""
+
+        if shift == None:
+            shift = 0
+        else:
+            shift=shift
+        
+        # Highs and Lows from dataframe
+        highs = highs
+        lows = lows
+
+        pivot_highs = []
+        pivot_lows = []
+
+        for i in range(length, len(highs) - length):
+            if (
+                highs.iloc[i] > max(highs.iloc[i - length : i])
+                and highs.iloc[i] > max(highs.iloc[i + 1 : i + length + 1])
+            ):
+                pivot_highs.append(i)
+            if (
+                lows.iloc[i] < min(lows.iloc[i - length : i])
+                and lows.iloc[i] < min(lows.iloc[i + 1 : i + length + 1])
+            ):
+                pivot_lows.append(i)
+        
+        self['pivot_highs'] = highs.iloc[pivot_highs]
+        self['pivot_lows'] = lows.iloc[pivot_lows]
+
+        self['pivot_highs'] = self['pivot_highs'].shift(shift)
+        self['pivot_lows'] = self['pivot_lows'].shift(shift)
+
+        self['pivot_highs'] = self['pivot_highs'].ffill()
+        self['pivot_lows'] = self['pivot_lows'].ffill()
+
+        return PrepOHLC(self)
+    
+
+    def remove_cols(self, cols: list[str]) -> 'PrepOHLC':
+        
+        """Remove columns from dataframe"""
+
+        self = self.drop(columns=cols)
+
+        return PrepOHLC(self)
+    
+
+    def emas(self, length_s: list[int], dropna: bool=True) -> 'PrepOHLC':
+
+        """Exponential Moving Average: A weighted moving average that gives more weight
+        to recent price data"""
+
+        for length in length_s:
+            self[f'ema{length}'] = round(ta.ema(self.Close, length), 2)
+
+        if dropna == False:
+            return self
+        else:
+            self = self.dropna()
+
+        return PrepOHLC(self)
+    
+    def atr(self, length: int=14, dropna: bool=True, shift: int=0) -> 'PrepOHLC':
+
+        """Average True Range: A measure of volatility"""
+
+        self['atr'] =  round(ta.atr(self.High, self.Low, self.Close, length), 2).shift(shift)
+
+        if dropna == False:
+            return self
+        else: 
+            self = self.dropna()
+
+        return PrepOHLC(self)
+    
     
     
 
