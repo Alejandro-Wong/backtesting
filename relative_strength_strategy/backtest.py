@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from aaw.bt import BacktestingPy
-from aaw import analysis
+from bt import BacktestingPy
+import analysis
 
 from data_prep import dfs
 from strategy import RelativeStrength
