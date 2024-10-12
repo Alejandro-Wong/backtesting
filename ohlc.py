@@ -41,7 +41,6 @@ class GetOHLC:
 
     
     def from_yfinance(self) -> pd.DataFrame:
-        
         """
         Valid periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
         Valid intervals: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo 
@@ -72,7 +71,6 @@ class GetOHLC:
     
 
     def from_alpaca(self) -> pd.DataFrame:
-        
         """
         As of 2024, data from 2016 to present (8 years) is available for all intervals.
         """
@@ -164,14 +162,7 @@ class GetOHLC:
                 start_datetime = date.today() - timedelta(days=int(num_days[1]))
                 end_datetime = date.today() - timedelta(days=1)
 
-        # Request user defined number of days from specified end date
-                """
-                elif self.start == None and self.end != None and self.period != None:
-                    num_days = re.split('(\\d+)', self.period)
-                    end_datetime = pd.to_datetime(self.end, utc=True)
-                    start_datetime = end_datetime - timedelta(days=int(num_days[1]))
-                """
-            
+        # Request user defined number of days from specified end date          
             elif self.start == None and self.end != None and self.period != None:
                 if 'y' in self.period:
                     num_years = re.split('(\\d+)', self.period)
@@ -214,24 +205,12 @@ class GetOHLC:
             raw_data = stock.df
 
         # Reset index, fix timezone, set index to pd.datetime format, rename index
-            """df = raw_data.reset_index(level=0, drop=True)
-            df = df[~df.index.duplicated(keep='first')]         # in case of duplicate index
-            df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d %H:%M:%S')
-            df.index = pd.to_datetime(df.index)
-            df.index = df.index.tz_localize('UTC').tz_convert('US/Eastern')
-            # est_index = df.index.tz_convert('US/Eastern')
-            # df = df.set_index(est_index)
-            df.index.names = ['Datetime']"""
-
             df = raw_data.reset_index(level=0, drop=True)
             df = df[~df.index.duplicated(keep='first')]         # in case of duplicate index
             df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d %H:%M:%S')
             df.index = pd.to_datetime(df.index)
-            # df.index = df.index.tz_localize('EST')
             df.index = df.index.tz_localize('UTC').tz_convert('US/Eastern')
             df.index = df.index.tz_localize(None)
-            # est_index = df.index.tz_convert('US/Eastern')
-            # df = df.set_index(est_index)
             df.index.names = ['Datetime']
 
 
